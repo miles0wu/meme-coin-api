@@ -1,0 +1,29 @@
+services:
+  server:
+    build:
+      context: .
+      target: final
+    command: --config=/home/config/config.yaml
+    volumes:
+      - ./config/config.yaml:/home/config/config.yaml
+    ports:
+      - 8080:8080
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  mysql:
+    image: mysql:8.0
+    restart: always
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - ./script/mysql/:/docker-entrypoint-initdb.d/
+    ports:
+      - 13306:3306
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      retries: 5
+      timeout: 5s

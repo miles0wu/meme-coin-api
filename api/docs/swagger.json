@@ -1,0 +1,332 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "Meme coins api swagger",
+        "title": "MemeCoins",
+        "contact": {
+            "name": "miles0wu",
+            "email": "miles4w701@gmail.com"
+        },
+        "license": {
+            "name": "GPL-3.0",
+            "url": "https://spdx.org/licenses/GPL-3.0-only.html"
+        },
+        "version": "0.1.0"
+    },
+    "basePath": "/",
+    "paths": {
+        "/api/v1/meme-coins": {
+            "post": {
+                "description": "Add a new meme coin",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Create meme coin",
+                "parameters": [
+                    {
+                        "description": "coin",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/web.CreateCoinReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/web.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/web.CoinVo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/meme-coins/{id}": {
+            "get": {
+                "description": "Get a coin info by id.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Get meme coin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/web.Result"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/web.CoinVo"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Modify the description of a meme coin by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Update meme coin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "coin",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/web.UpdateCoinReq"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Remove a meme coin by its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Delete meme coin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/meme-coins/{id}/poke": {
+            "post": {
+                "description": "Poke a meme coin to show your interest in its ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Coins"
+                ],
+                "summary": "Poke meme coin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Coin ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/web.Result"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "web.CoinVo": {
+            "type": "object",
+            "properties": {
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "popularityScore": {
+                    "type": "integer"
+                },
+                "updated": {
+                    "type": "string"
+                }
+            }
+        },
+        "web.CreateCoinReq": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "web.Result": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {},
+                "msg": {
+                    "type": "string"
+                }
+            }
+        },
+        "web.UpdateCoinReq": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

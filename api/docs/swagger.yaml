@@ -1,0 +1,213 @@
+basePath: /
+definitions:
+  web.CoinVo:
+    properties:
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      popularityScore:
+        type: integer
+      updated:
+        type: string
+    type: object
+  web.CreateCoinReq:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  web.Result:
+    properties:
+      code:
+        type: integer
+      data: {}
+      msg:
+        type: string
+    type: object
+  web.UpdateCoinReq:
+    properties:
+      description:
+        type: string
+    type: object
+info:
+  contact:
+    email: miles4w701@gmail.com
+    name: miles0wu
+  description: Meme coins api swagger
+  license:
+    name: GPL-3.0
+    url: https://spdx.org/licenses/GPL-3.0-only.html
+  title: MemeCoins
+  version: 0.1.0
+paths:
+  /api/v1/meme-coins:
+    post:
+      consumes:
+      - application/json
+      description: Add a new meme coin
+      parameters:
+      - description: coin
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/web.CreateCoinReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/web.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/web.CoinVo'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.Result'
+      summary: Create meme coin
+      tags:
+      - Coins
+  /api/v1/meme-coins/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Remove a meme coin by its ID
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+          schema:
+            $ref: '#/definitions/web.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.Result'
+      summary: Delete meme coin
+      tags:
+      - Coins
+    get:
+      consumes:
+      - application/json
+      description: Get a coin info by id.
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/web.Result'
+            - properties:
+                data:
+                  $ref: '#/definitions/web.CoinVo'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.Result'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/web.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.Result'
+      summary: Get meme coin
+      tags:
+      - Coins
+    put:
+      consumes:
+      - application/json
+      description: Modify the description of a meme coin by its ID
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: coin
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/web.UpdateCoinReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.Result'
+      summary: Update meme coin
+      tags:
+      - Coins
+  /api/v1/meme-coins/{id}/poke:
+    post:
+      consumes:
+      - application/json
+      description: Poke a meme coin to show your interest in its ID
+      parameters:
+      - description: Coin ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/web.Result'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/web.Result'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/web.Result'
+      summary: Poke meme coin
+      tags:
+      - Coins
+swagger: "2.0"

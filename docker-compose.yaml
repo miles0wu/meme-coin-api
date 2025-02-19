@@ -27,3 +27,11 @@ services:
       interval: 10s
       retries: 5
       timeout: 5s
+
+  redis:
+    image: 'bitnami/redis:latest'
+    restart: always
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - 16379:6379

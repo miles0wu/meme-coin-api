@@ -7,7 +7,9 @@
 package main
 
 import (
+	"github.com/google/wire"
 	"github.com/miles0wu/meme-coin-api/internal/repository"
+	"github.com/miles0wu/meme-coin-api/internal/repository/cache"
 	"github.com/miles0wu/meme-coin-api/internal/repository/dao"
 	"github.com/miles0wu/meme-coin-api/internal/service"
 	"github.com/miles0wu/meme-coin-api/internal/web"
@@ -21,7 +23,9 @@ func InitApp() *App {
 	logger := ioc.InitLogger()
 	db := ioc.InitDB(logger)
 	coinDAO := dao.NewGormCoinDAO(db, logger)
-	coinRepository := repository.NewCachedCoinRepository(coinDAO)
+	cmdable := ioc.InitRedis()
+	coinCache := cache.NewRedisCoinCache(cmdable)
+	coinRepository := repository.NewCachedCoinRepository(coinDAO, coinCache, logger)
 	coinService := service.NewCoinService(coinRepository)
 	coinHandler := web.NewCoinHandler(coinService, logger)
 	engine := ioc.InitWebServer(v, coinHandler)
@@ -30,3 +34,7 @@ func InitApp() *App {
 	}
 	return app
 }
+
+// wire.go:
+
+var thirdPartySet = wire.NewSet(ioc.InitLogger, ioc.InitDB, ioc.InitRedis)

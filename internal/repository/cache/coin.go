@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/miles0wu/meme-coin-api/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -14,7 +15,7 @@ var ErrKeyNotExist = redis.Nil
 type CoinCache interface {
 	Set(ctx context.Context, c domain.Coin) error
 	Get(ctx context.Context, id int64) (domain.Coin, error)
-	IncrPopularityScoreIfPresent(ctx context.Context, id int64) error
+	Del(ctx context.Context, id int64) error
 }
 
 type RedisCoinCache struct {
@@ -23,28 +24,37 @@ type RedisCoinCache struct {
 }
 
 func NewRedisCoinCache(client redis.Cmdable) CoinCache {
-	return &RedisCoinCache{client: client}
+	return &RedisCoinCache{
+		client:     client,
+		expiration: time.Minute * 15,
+	}
 }
 
 func (c *RedisCoinCache) key(id int64) string {
-	return fmt.Sprintf("coin:detail:%d", id)
-}
-
-func (c *RedisCoinCache) scoreKey(id int64) string {
-	return fmt.Sprintf("coin:popularity_score:%d", id)
+	return fmt.Sprintf("coin:%d", id)
 }
 
 func (c *RedisCoinCache) Set(ctx context.Context, coin domain.Coin) error {
-	//TODO implement me
-	panic("implement me")
+	bs, err := json.Marshal(coin)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, c.key(coin.Id), bs, c.expiration).Err()
 }
 
 func (c *RedisCoinCache) Get(ctx context.Context, id int64) (domain.Coin, error) {
-	//TODO implement me
-	panic("implement me")
+	val, err := c.client.Get(ctx, c.key(id)).Bytes()
+	if err != nil {
+		return domain.Coin{}, err
+	}
+	var coin domain.Coin
+	err = json.Unmarshal(val, &coin)
+	if err != nil {
+		return domain.Coin{}, err
+	}
+	return coin, nil
 }
 
-func (c *RedisCoinCache) IncrPopularityScoreIfPresent(ctx context.Context, id int64) error {
-	//TODO implement me
-	panic("implement me")
+func (c *RedisCoinCache) Del(ctx context.Context, id int64) error {
+	return c.client.Del(ctx, c.key(id)).Err()
 }

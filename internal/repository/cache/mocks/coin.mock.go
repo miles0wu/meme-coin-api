@@ -41,6 +41,20 @@ func (m *MockCoinCache) EXPECT() *MockCoinCacheMockRecorder {
 	return m.recorder
 }
 
+// Del mocks base method.
+func (m *MockCoinCache) Del(ctx context.Context, id int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Del", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Del indicates an expected call of Del.
+func (mr *MockCoinCacheMockRecorder) Del(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Del", reflect.TypeOf((*MockCoinCache)(nil).Del), ctx, id)
+}
+
 // Get mocks base method.
 func (m *MockCoinCache) Get(ctx context.Context, id int64) (domain.Coin, error) {
 	m.ctrl.T.Helper()
@@ -54,20 +68,6 @@ func (m *MockCoinCache) Get(ctx context.Context, id int64) (domain.Coin, error) 
 func (mr *MockCoinCacheMockRecorder) Get(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockCoinCache)(nil).Get), ctx, id)
-}
-
-// IncrPopularityScoreIfPresent mocks base method.
-func (m *MockCoinCache) IncrPopularityScoreIfPresent(ctx context.Context, id int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "IncrPopularityScoreIfPresent", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// IncrPopularityScoreIfPresent indicates an expected call of IncrPopularityScoreIfPresent.
-func (mr *MockCoinCacheMockRecorder) IncrPopularityScoreIfPresent(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrPopularityScoreIfPresent", reflect.TypeOf((*MockCoinCache)(nil).IncrPopularityScoreIfPresent), ctx, id)
 }
 
 // Set mocks base method.

@@ -1,2 +1,6 @@
+# This config used for local development with go run command
 db:
   dsn: "root:root@tcp(localhost:13306)/portto"
+
+redis:
+  addr: "localhost:16379"

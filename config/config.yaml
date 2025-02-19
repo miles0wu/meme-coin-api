@@ -1,2 +1,6 @@
+# This config is used for local development with docker compose
 db:
   dsn: "root:root@tcp(mysql:3306)/portto"
+
+redis:
+  addr: "redis:6379"

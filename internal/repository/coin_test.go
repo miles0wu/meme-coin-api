@@ -5,8 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/miles0wu/meme-coin-api/internal/domain"
+	"github.com/miles0wu/meme-coin-api/internal/repository/cache"
+	cachemocks "github.com/miles0wu/meme-coin-api/internal/repository/cache/mocks"
 	"github.com/miles0wu/meme-coin-api/internal/repository/dao"
 	daomocks "github.com/miles0wu/meme-coin-api/internal/repository/dao/mocks"
+	"github.com/miles0wu/meme-coin-api/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"testing"
@@ -18,7 +21,7 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 	now := time.UnixMilli(nowMs)
 	testCases := []struct {
 		name string
-		mock func(*gomock.Controller) dao.CoinDAO
+		mock func(*gomock.Controller) (dao.CoinDAO, cache.CoinCache)
 
 		coin domain.Coin
 
@@ -27,8 +30,9 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 	}{
 		{
 			name: "create success",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().Insert(gomock.Any(), dao.Coin{
 					Name:        "test",
 					Description: sql.NullString{String: "test description", Valid: true},
@@ -40,7 +44,7 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 					UpdatedAt:       nowMs,
 					PopularityScore: 0,
 				}, nil)
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			coin: domain.Coin{
 				Name:        "test",
@@ -58,13 +62,14 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 		},
 		{
 			name: "duplicate name error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().Insert(gomock.Any(), dao.Coin{
 					Name:        "test",
 					Description: sql.NullString{String: "test description", Valid: true},
 				}).Return(dao.Coin{}, dao.ErrDuplicateName)
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			coin: domain.Coin{
 				Name:        "test",
@@ -74,13 +79,14 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 		},
 		{
 			name: "db error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().Insert(gomock.Any(), dao.Coin{
 					Name:        "test",
 					Description: sql.NullString{String: "test description", Valid: true},
 				}).Return(dao.Coin{}, errors.New("mock db error"))
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			coin: domain.Coin{
 				Name:        "test",
@@ -94,8 +100,8 @@ func TestCachedCoinRepository_Create(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			coinDAO := tc.mock(ctrl)
-			repo := NewCachedCoinRepository(coinDAO)
+			coinDAO, coinCache := tc.mock(ctrl)
+			repo := NewCachedCoinRepository(coinDAO, coinCache, logger.NewNopLogger())
 			ret, err := repo.Create(context.Background(), tc.coin)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
@@ -111,22 +117,47 @@ func TestCachedCoinRepository_Update(t *testing.T) {
 	now := time.UnixMilli(nowMs)
 	testCases := []struct {
 		name string
-		mock func(*gomock.Controller) dao.CoinDAO
+		mock func(*gomock.Controller) (dao.CoinDAO, cache.CoinCache)
 
 		coin domain.Coin
 
 		wantErr error
 	}{
 		{
-			name: "update success",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			name: "update success and delete cache success",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().UpdateById(gomock.Any(), dao.Coin{
 					Id:          1,
 					Name:        "test",
 					Description: sql.NullString{String: "new test description", Valid: true},
 				}).Return(nil)
-				return coinDAO
+				coinCache.EXPECT().Del(gomock.Any(), int64(1)).Return(nil)
+				return coinDAO, coinCache
+			},
+			coin: domain.Coin{
+				Id:              1,
+				Name:            "test",
+				Description:     "new test description",
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				PopularityScore: 0,
+			},
+			wantErr: nil,
+		},
+		{
+			name: "update success and delete cache failed",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
+				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinDAO.EXPECT().UpdateById(gomock.Any(), dao.Coin{
+					Id:          1,
+					Name:        "test",
+					Description: sql.NullString{String: "new test description", Valid: true},
+				}).Return(nil)
+				coinCache.EXPECT().Del(gomock.Any(), int64(1)).Return(errors.New("redis conn error"))
+				return coinDAO, coinCache
 			},
 			coin: domain.Coin{
 				Id:              1,
@@ -140,14 +171,15 @@ func TestCachedCoinRepository_Update(t *testing.T) {
 		},
 		{
 			name: "db error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().UpdateById(gomock.Any(), dao.Coin{
 					Id:          1,
 					Name:        "test",
 					Description: sql.NullString{String: "new test description", Valid: true},
 				}).Return(errors.New("mock db error"))
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			coin: domain.Coin{
 				Id:              1,
@@ -165,9 +197,10 @@ func TestCachedCoinRepository_Update(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			coinDAO := tc.mock(ctrl)
-			repo := NewCachedCoinRepository(coinDAO)
+			coinDAO, coinCache := tc.mock(ctrl)
+			repo := NewCachedCoinRepository(coinDAO, coinCache, logger.NewNopLogger())
 			err := repo.Update(context.Background(), tc.coin)
+			time.Sleep(time.Millisecond * 300)
 			assert.Equal(t, tc.wantErr, err)
 		})
 	}
@@ -178,7 +211,7 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 	now := time.UnixMilli(nowMs)
 	testCases := []struct {
 		name string
-		mock func(*gomock.Controller) dao.CoinDAO
+		mock func(*gomock.Controller) (dao.CoinDAO, cache.CoinCache)
 
 		id int64
 
@@ -186,9 +219,36 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "find success",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			name: "cache hit",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinCache.EXPECT().Get(gomock.Any(), int64(1)).Return(domain.Coin{
+					Id:              1,
+					Name:            "test",
+					Description:     "new test description",
+					CreatedAt:       now,
+					UpdatedAt:       now,
+					PopularityScore: 0,
+				}, nil)
+				return coinDAO, coinCache
+			},
+			id: 1,
+			wantRet: domain.Coin{
+				Id:              1,
+				Name:            "test",
+				Description:     "new test description",
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				PopularityScore: 0,
+			},
+		},
+		{
+			name: "cache miss and db found",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
+				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinCache.EXPECT().Get(gomock.Any(), int64(1)).Return(domain.Coin{}, cache.ErrKeyNotExist)
 				coinDAO.EXPECT().FindById(gomock.Any(), int64(1)).Return(dao.Coin{
 					Id:              1,
 					Name:            "test",
@@ -197,7 +257,15 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 					UpdatedAt:       nowMs,
 					PopularityScore: 0,
 				}, nil)
-				return coinDAO
+				coinCache.EXPECT().Set(gomock.Any(), domain.Coin{
+					Id:              1,
+					Name:            "test",
+					Description:     "new test description",
+					CreatedAt:       now,
+					UpdatedAt:       now,
+					PopularityScore: 0,
+				}).Return(nil)
+				return coinDAO, coinCache
 			},
 			id: 1,
 			wantRet: domain.Coin{
@@ -211,21 +279,25 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 			wantErr: nil,
 		},
 		{
-			name: "record not found",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			name: "cache miss and db not found",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinCache.EXPECT().Get(gomock.Any(), int64(1)).Return(domain.Coin{}, cache.ErrKeyNotExist)
 				coinDAO.EXPECT().FindById(gomock.Any(), int64(1)).Return(dao.Coin{}, dao.ErrRecordNotFound)
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: dao.ErrRecordNotFound,
 		},
 		{
-			name: "db error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			name: "cache miss and db error",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinCache.EXPECT().Get(gomock.Any(), int64(1)).Return(domain.Coin{}, cache.ErrKeyNotExist)
 				coinDAO.EXPECT().FindById(gomock.Any(), int64(1)).Return(dao.Coin{}, errors.New("mock db error"))
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: errors.New("mock db error"),
@@ -236,9 +308,10 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			coinDAO := tc.mock(ctrl)
-			repo := NewCachedCoinRepository(coinDAO)
+			coinDAO, coinCache := tc.mock(ctrl)
+			repo := NewCachedCoinRepository(coinDAO, coinCache, logger.NewNopLogger())
 			ret, err := repo.FindById(context.Background(), tc.id)
+			time.Sleep(time.Millisecond * 300)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				return
@@ -251,7 +324,7 @@ func TestCachedCoinRepository_FindById(t *testing.T) {
 func TestCachedCoinRepository_DeleteById(t *testing.T) {
 	testCases := []struct {
 		name string
-		mock func(*gomock.Controller) dao.CoinDAO
+		mock func(*gomock.Controller) (dao.CoinDAO, cache.CoinCache)
 
 		id int64
 
@@ -259,20 +332,35 @@ func TestCachedCoinRepository_DeleteById(t *testing.T) {
 	}{
 		{
 			name: "delete success",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().DeleteById(gomock.Any(), int64(1)).Return(nil)
-				return coinDAO
+				coinCache.EXPECT().Del(gomock.Any(), int64(1)).Return(nil)
+				return coinDAO, coinCache
+			},
+			id:      1,
+			wantErr: nil,
+		},
+		{
+			name: "delete db success and delete cache error",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
+				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
+				coinDAO.EXPECT().DeleteById(gomock.Any(), int64(1)).Return(nil)
+				coinCache.EXPECT().Del(gomock.Any(), int64(1)).Return(errors.New("redis conn error"))
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: nil,
 		},
 		{
 			name: "db error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().DeleteById(gomock.Any(), int64(1)).Return(errors.New("mock db error"))
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: errors.New("mock db error"),
@@ -283,9 +371,10 @@ func TestCachedCoinRepository_DeleteById(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			coinDAO := tc.mock(ctrl)
-			repo := NewCachedCoinRepository(coinDAO)
+			coinDAO, coinCache := tc.mock(ctrl)
+			repo := NewCachedCoinRepository(coinDAO, coinCache, logger.NewNopLogger())
 			err := repo.DeleteById(context.Background(), tc.id)
+			time.Sleep(time.Millisecond * 300)
 			assert.Equal(t, tc.wantErr, err)
 		})
 	}
@@ -294,38 +383,42 @@ func TestCachedCoinRepository_DeleteById(t *testing.T) {
 func TestCachedCoinRepository_IncrPopularityScore(t *testing.T) {
 	testCases := []struct {
 		name string
-		mock func(*gomock.Controller) dao.CoinDAO
+		mock func(*gomock.Controller) (dao.CoinDAO, cache.CoinCache)
 
 		id int64
 
 		wantErr error
 	}{
 		{
-			name: "incr success",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			name: "incr success and delete cache success",
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().IncrPopularityScore(gomock.Any(), int64(1)).Return(nil)
-				return coinDAO
+				coinCache.EXPECT().Del(gomock.Any(), int64(1)).Return(nil)
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: nil,
 		},
 		{
 			name: "0 row affected",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().IncrPopularityScore(gomock.Any(), int64(1)).Return(dao.ErrRecordNotFound)
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: dao.ErrRecordNotFound,
 		},
 		{
 			name: "db error",
-			mock: func(ctrl *gomock.Controller) dao.CoinDAO {
+			mock: func(ctrl *gomock.Controller) (dao.CoinDAO, cache.CoinCache) {
 				coinDAO := daomocks.NewMockCoinDAO(ctrl)
+				coinCache := cachemocks.NewMockCoinCache(ctrl)
 				coinDAO.EXPECT().IncrPopularityScore(gomock.Any(), int64(1)).Return(errors.New("mock db error"))
-				return coinDAO
+				return coinDAO, coinCache
 			},
 			id:      1,
 			wantErr: errors.New("mock db error"),
@@ -336,9 +429,10 @@ func TestCachedCoinRepository_IncrPopularityScore(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			coinDAO := tc.mock(ctrl)
-			repo := NewCachedCoinRepository(coinDAO)
+			coinDAO, coinCache := tc.mock(ctrl)
+			repo := NewCachedCoinRepository(coinDAO, coinCache, logger.NewNopLogger())
 			err := repo.IncrPopularityScore(context.Background(), tc.id)
+			time.Sleep(time.Millisecond * 300)
 			assert.Equal(t, tc.wantErr, err)
 		})
 	}

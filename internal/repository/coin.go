@@ -6,6 +6,7 @@ import (
 	"github.com/miles0wu/meme-coin-api/internal/domain"
 	"github.com/miles0wu/meme-coin-api/internal/repository/cache"
 	"github.com/miles0wu/meme-coin-api/internal/repository/dao"
+	"github.com/miles0wu/meme-coin-api/pkg/logger"
 	"time"
 )
 
@@ -26,13 +27,14 @@ type CoinRepository interface {
 type CachedCoinRepository struct {
 	dao   dao.CoinDAO
 	cache cache.CoinCache
+	l     logger.Logger
 }
 
-// NewCachedCoinRepository
-// TODO: add cache mechanism
-func NewCachedCoinRepository(dao dao.CoinDAO) CoinRepository {
+func NewCachedCoinRepository(dao dao.CoinDAO, cache cache.CoinCache, l logger.Logger) CoinRepository {
 	return &CachedCoinRepository{
-		dao: dao,
+		dao:   dao,
+		cache: cache,
+		l:     l,
 	}
 }
 
@@ -45,24 +47,86 @@ func (repo *CachedCoinRepository) Create(ctx context.Context, coin domain.Coin) 
 }
 
 func (repo *CachedCoinRepository) Update(ctx context.Context, coin domain.Coin) error {
-	return repo.dao.UpdateById(ctx, repo.toEntity(coin))
+	err := repo.dao.UpdateById(ctx, repo.toEntity(coin))
+	if err != nil {
+		return err
+	}
+	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		er := repo.cache.Del(newCtx, coin.Id)
+		if er != nil {
+			repo.l.Error("failed to delete coin cache after update coin",
+				logger.Int64("coin_id", coin.Id),
+				logger.Error(err))
+		}
+	}()
+	return nil
 }
 
 func (repo *CachedCoinRepository) FindById(ctx context.Context, id int64) (domain.Coin, error) {
-	coin, err := repo.dao.FindById(ctx, id)
+	// get coin from cache, return domain object if hit
+	coin, err := repo.cache.Get(ctx, id)
+	if err == nil {
+		return coin, nil
+	}
+
+	// get coin from db
+	entity, err := repo.dao.FindById(ctx, id)
 	if err != nil {
 		return domain.Coin{}, err
 	}
 
-	return repo.toDomain(coin), nil
+	// set coin cache
+	coin = repo.toDomain(entity)
+	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		er := repo.cache.Set(newCtx, coin)
+		if er != nil {
+			repo.l.Error("failed to set coin cache after get coin from db",
+				logger.Int64("coin_id", coin.Id),
+				logger.Error(err))
+		}
+	}()
+
+	return coin, nil
 }
 
 func (repo *CachedCoinRepository) DeleteById(ctx context.Context, id int64) error {
-	return repo.dao.DeleteById(ctx, id)
+	err := repo.dao.DeleteById(ctx, id)
+	if err != nil {
+		return err
+	}
+	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		er := repo.cache.Del(newCtx, id)
+		if er != nil {
+			repo.l.Error("failed to delete coin cache after delete coin",
+				logger.Int64("coin_id", id),
+				logger.Error(err))
+		}
+	}()
+	return err
 }
 
 func (repo *CachedCoinRepository) IncrPopularityScore(ctx context.Context, id int64) error {
-	return repo.dao.IncrPopularityScore(ctx, id)
+	err := repo.dao.IncrPopularityScore(ctx, id)
+	if err != nil {
+		return err
+	}
+	go func() {
+		newCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		er := repo.cache.Del(newCtx, id)
+		if er != nil {
+			repo.l.Error("failed to delete coin cache after increase popularity score",
+				logger.Int64("coin_id", id),
+				logger.Error(err))
+		}
+	}()
+	return nil
 }
 
 func (repo *CachedCoinRepository) toEntity(c domain.Coin) dao.Coin {
